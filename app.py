@@ -51,14 +51,22 @@ def get_db():
 class WordFilterCreate(BaseModel):
     words: str  # Tek kelime veya virgül/satır ile çoklu
     match_type: str = "contains"
+    chat_id: Optional[str] = "all"
+    chat_title: Optional[str] = "Tüm Gruplar"
     send_dm: bool = False
     custom_dm_message: Optional[str] = None
 
 class UserFilterCreate(BaseModel):
     identifier: str  # ID, telefon (+90...) veya @kullanici_adi
+    chat_id: Optional[str] = "all"
+    chat_title: Optional[str] = "Tüm Gruplar"
     note: Optional[str] = None
     send_dm: bool = False
     custom_dm_message: Optional[str] = None
+
+class ManualChatCreate(BaseModel):
+    chat_id: str
+    chat_title: Optional[str] = None
 
 class SettingsUpdate(BaseModel):
     default_dm_template: str
@@ -68,10 +76,11 @@ class SettingsUpdate(BaseModel):
 
 class TestMessageRequest(BaseModel):
     message_text: str
+    chat_id: Optional[str] = "-10012345678"
+    chat_title: Optional[str] = "Örnek Grup"
     sender_id: Optional[str] = "12345678"
     sender_username: Optional[str] = "ornek_kullanici"
     sender_phone: Optional[str] = "+905551112233"
-    chat_title: Optional[str] = "Örnek Grup"
 
 @app.get("/health")
 def health():
@@ -171,6 +180,80 @@ async def delete_account(id: int, db=Depends(get_db)):
 async def get_dialogs(id: int):
     return await bot_service.get_account_dialogs(id)
 
+# --- SOHBET / KANAL LİSTESİ ---
+
+@app.get("/api/chats")
+async def list_chats(db=Depends(get_db)):
+    # 1. Aktif Telegram hesabından çek
+    tg_dialogs = await bot_service.get_all_dialogs()
+    # 2. Veritabanındaki manuel kayıtlı sohbetlerle birleştir
+    db_chats = db.query(database.MonitoredChat).all()
+    db_map = {c.chat_id: c for c in db_chats}
+
+    results = []
+    seen = set()
+
+    # Telegram'dan gelen sohbetler
+    for d in tg_dialogs:
+        cid = str(d["id"])
+        seen.add(cid)
+        is_active = True
+        if cid in db_map:
+            is_active = db_map[cid].is_active
+        results.append({
+            "id": cid,
+            "title": d["title"],
+            "is_group": d.get("is_group", True),
+            "is_channel": d.get("is_channel", False),
+            "is_admin": d.get("is_admin", True),
+            "is_active": is_active,
+            "source": "telegram"
+        })
+
+    # Manuel eklenen sohbetler
+    for c in db_chats:
+        if c.chat_id not in seen:
+            results.append({
+                "id": c.chat_id,
+                "title": c.chat_title or f"Chat {c.chat_id}",
+                "is_group": True,
+                "is_channel": False,
+                "is_admin": True,
+                "is_active": c.is_active,
+                "source": "manual"
+            })
+
+    return results
+
+@app.post("/api/chats")
+def add_manual_chat(item: ManualChatCreate, db=Depends(get_db)):
+    clean_id = item.chat_id.strip()
+    if not clean_id:
+        raise HTTPException(status_code=400, detail="Sohbet ID boş olamaz.")
+    existing = db.query(database.MonitoredChat).filter(database.MonitoredChat.chat_id == clean_id).first()
+    if existing:
+        existing.chat_title = item.chat_title or existing.chat_title
+        existing.is_active = True
+    else:
+        db.add(database.MonitoredChat(
+            chat_id=clean_id,
+            chat_title=item.chat_title or f"Sohbet {clean_id}",
+            is_active=True
+        ))
+    db.commit()
+    return {"status": "ok"}
+
+@app.post("/api/chats/{chat_id}/toggle")
+def toggle_chat(chat_id: str, db=Depends(get_db)):
+    c = db.query(database.MonitoredChat).filter(database.MonitoredChat.chat_id == chat_id).first()
+    if c:
+        c.is_active = not c.is_active
+    else:
+        c = database.MonitoredChat(chat_id=chat_id, is_active=False)
+        db.add(c)
+    db.commit()
+    return {"status": "ok", "is_active": c.is_active}
+
 # --- YASAKLI KELİMELER ---
 
 @app.get("/api/words")
@@ -179,18 +262,25 @@ def get_words(db=Depends(get_db)):
 
 @app.post("/api/words")
 def add_words(item: WordFilterCreate, db=Depends(get_db)):
-    # Çoklu kelime eklemeyi destekle (virgül veya yeni satır ile)
     raw_lines = item.words.replace("\r", "").split("\n")
     added_count = 0
+    chat_id = (item.chat_id or "all").strip()
+    chat_title = (item.chat_title or "Tüm Gruplar").strip()
+
     for line in raw_lines:
         words = [w.strip() for w in line.split(",") if w.strip()]
         for w in words:
-            # Aynı kelime zaten varsa atla
-            existing = db.query(WordFilter).filter(WordFilter.word == w).first()
+            # Aynı kelime ve aynı sohbet kuralı zaten varsa atla
+            existing = db.query(WordFilter).filter(
+                WordFilter.word == w,
+                WordFilter.chat_id == chat_id
+            ).first()
             if not existing:
                 db.add(WordFilter(
                     word=w,
                     match_type=item.match_type,
+                    chat_id=chat_id,
+                    chat_title=chat_title,
                     send_dm=item.send_dm,
                     custom_dm_message=item.custom_dm_message.strip() if item.custom_dm_message else None,
                     is_active=True
@@ -228,11 +318,19 @@ def add_user(item: UserFilterCreate, db=Depends(get_db)):
     clean_id = item.identifier.strip()
     if not clean_id:
         raise HTTPException(status_code=400, detail="Kimlik bilgisi boş olamaz.")
-    existing = db.query(UserFilter).filter(UserFilter.identifier == clean_id).first()
+    chat_id = (item.chat_id or "all").strip()
+    chat_title = (item.chat_title or "Tüm Gruplar").strip()
+
+    existing = db.query(UserFilter).filter(
+        UserFilter.identifier == clean_id,
+        UserFilter.chat_id == chat_id
+    ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Bu kullanıcı/numara zaten listede ekli.")
+        raise HTTPException(status_code=400, detail="Bu kullanıcı/numara zaten bu grup için listede ekli.")
     uf = UserFilter(
         identifier=clean_id,
+        chat_id=chat_id,
+        chat_title=chat_title,
         note=item.note.strip() if item.note else None,
         send_dm=item.send_dm,
         custom_dm_message=item.custom_dm_message.strip() if item.custom_dm_message else None,
@@ -329,10 +427,14 @@ def update_settings(item: SettingsUpdate, db=Depends(get_db)):
 @app.post("/api/test-message")
 def test_message(req: TestMessageRequest, db=Depends(get_db)):
     """Girilen mesajı ve kullanıcıyı test eder, silinip silinmeyeceğini ve gönderilecek DM'i gösterir."""
+    chat_id = req.chat_id or "12345"
+
     # 1. Kullanıcı kontrolü
     user_filters = db.query(UserFilter).filter(UserFilter.is_active == True).all()
     matched_user = None
     for uf in user_filters:
+        if not bot_service.is_chat_match(uf.chat_id, chat_id):
+            continue
         if check_user_match(uf.identifier, int(req.sender_id or 0), req.sender_username, req.sender_phone):
             matched_user = uf
             break
@@ -346,6 +448,7 @@ def test_message(req: TestMessageRequest, db=Depends(get_db)):
             "would_delete": True,
             "trigger_type": "user",
             "trigger_value": matched_user.identifier,
+            "matched_chat": matched_user.chat_title or "Tüm Gruplar",
             "send_dm": matched_user.send_dm,
             "dm_preview": dm_preview
         }
@@ -354,6 +457,8 @@ def test_message(req: TestMessageRequest, db=Depends(get_db)):
     word_filters = db.query(WordFilter).filter(WordFilter.is_active == True).all()
     matched_word = None
     for wf in word_filters:
+        if not bot_service.is_chat_match(wf.chat_id, chat_id):
+            continue
         if check_word_match(wf.word, req.message_text, wf.match_type):
             matched_word = wf
             break
@@ -367,6 +472,7 @@ def test_message(req: TestMessageRequest, db=Depends(get_db)):
             "would_delete": True,
             "trigger_type": "word",
             "trigger_value": matched_word.word,
+            "matched_chat": matched_word.chat_title or "Tüm Gruplar",
             "send_dm": matched_word.send_dm,
             "dm_preview": dm_preview
         }

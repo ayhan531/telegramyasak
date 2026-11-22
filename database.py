@@ -41,6 +41,8 @@ class WordFilter(Base):
     id = Column(Integer, primary_key=True, index=True)
     word = Column(String, index=True, nullable=False)
     match_type = Column(String, default="contains")  # 'contains', 'exact', 'regex'
+    chat_id = Column(String, default="all", nullable=True)  # 'all' veya '-100...'
+    chat_title = Column(String, default="Tüm Gruplar", nullable=True)
     send_dm = Column(Boolean, default=False)
     custom_dm_message = Column(Text, nullable=True)
     action = Column(String, default="delete")  # 'delete', 'delete_and_mute', 'delete_and_ban'
@@ -52,10 +54,22 @@ class UserFilter(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     identifier = Column(String, index=True, nullable=False)  # User ID, @username, or phone
+    chat_id = Column(String, default="all", nullable=True)  # 'all' veya '-100...'
+    chat_title = Column(String, default="Tüm Gruplar", nullable=True)
     note = Column(String, nullable=True)
     send_dm = Column(Boolean, default=False)
     custom_dm_message = Column(Text, nullable=True)
     action = Column(String, default="delete")  # 'delete', 'delete_and_ban'
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class MonitoredChat(Base):
+    __tablename__ = "monitored_chats"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(String, unique=True, index=True, nullable=False)
+    chat_title = Column(String, nullable=True)
+    chat_username = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

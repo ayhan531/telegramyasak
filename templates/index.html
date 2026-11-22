@@ -52,7 +52,7 @@
                             Sistem Aktif
                         </span>
                     </h1>
-                    <p class="text-xs text-slate-400">Yasaklı kelimeleri ve spam göndericileri anında siler, isteğe göre özelden uyarır</p>
+                    <p class="text-xs text-slate-400">Hangi grupta hangi kelimenin silineceğini özel olarak yönetin ve uyarın</p>
                 </div>
             </div>
 
@@ -66,7 +66,7 @@
                         <div id="account-name" class="font-medium text-slate-200">Hesap Aranıyor...</div>
                         <div id="account-sub" class="text-slate-400 text-[10px]">Bağlantı kontrolü</div>
                     </div>
-                    <button onclick="openAccountModal()" class="ml-2 text-xs bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg transition">
+                    <button onclick="openAccountModal()" class="ml-2 text-xs bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg transition font-medium">
                         Hesap Bağla
                     </button>
                 </div>
@@ -79,9 +79,13 @@
 
         <!-- TAB BUTONLARI -->
         <div class="flex border-b border-tg-border gap-2 overflow-x-auto pb-1 text-sm font-medium">
-            <button onclick="switchTab('words')" id="tab-btn-words" class="tab-btn px-4 py-2.5 rounded-t-lg border-b-2 border-blue-500 text-blue-400 bg-tg-card/50 flex items-center gap-2">
+            <button onclick="switchTab('chats')" id="tab-btn-chats" class="tab-btn px-4 py-2.5 rounded-t-lg border-b-2 border-blue-500 text-blue-400 bg-tg-card/50 flex items-center gap-2">
+                <i class="fa-solid fa-comments"></i> Gruplar & Kanallar
+                <span id="badge-chats-count" class="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full">0</span>
+            </button>
+            <button onclick="switchTab('words')" id="tab-btn-words" class="tab-btn px-4 py-2.5 rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
                 <i class="fa-solid fa-font"></i> Yasaklı Kelimeler
-                <span id="badge-words-count" class="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full">0</span>
+                <span id="badge-words-count" class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-full">0</span>
             </button>
             <button onclick="switchTab('users')" id="tab-btn-users" class="tab-btn px-4 py-2.5 rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
                 <i class="fa-solid fa-user-slash"></i> Yasaklı Numaralar & Kişiler
@@ -95,12 +99,48 @@
                 <i class="fa-solid fa-vial"></i> Canlı Kural Testi
             </button>
             <button onclick="switchTab('settings')" id="tab-btn-settings" class="tab-btn px-4 py-2.5 rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
-                <i class="fa-solid fa-sliders"></i> Bot Ayarları & Gruplar
+                <i class="fa-solid fa-sliders"></i> Bot Ayarları
             </button>
         </div>
 
+        <!-- TAB 0: GRUPLAR & KANALLAR -->
+        <section id="tab-chats" class="tab-content flex flex-col gap-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-tg-card p-4 rounded-xl border border-tg-border">
+                <div>
+                    <h2 class="text-sm font-semibold text-white">Yönettiğiniz ve Korunan Grup & Kanallar</h2>
+                    <p class="text-xs text-slate-400">Telegram hesabınızın admin olduğu gruplar burada listelenir. İster tek tıkla korumayı açıp kapatabilir, isterseniz o gruba özel kelime atayabilirsiniz.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="fetchChats()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg border border-tg-border flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate-right"></i> Grupları Yenile
+                    </button>
+                    <button onclick="openManualChatModal()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-plus"></i> Manuel Chat ID Ekle
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-tg-card border border-tg-border rounded-xl overflow-hidden shadow-sm">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900/60 text-slate-400 border-b border-tg-border text-xs uppercase">
+                        <tr>
+                            <th class="p-3.5">Grup / Kanal Adı</th>
+                            <th class="p-3.5">Sohbet ID (Chat ID)</th>
+                            <th class="p-3.5">Tür</th>
+                            <th class="p-3.5">Bu Gruba Özel Kurallar</th>
+                            <th class="p-3.5">Koruma Durumu</th>
+                            <th class="p-3.5 text-right">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody id="chats-table-body" class="divide-y divide-tg-border">
+                        <!-- Javascript ile dolacak -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <!-- TAB 1: YASAKLI KELİMELER -->
-        <section id="tab-words" class="tab-content flex flex-col gap-4">
+        <section id="tab-words" class="tab-content hidden flex flex-col gap-4">
             <div class="flex flex-wrap items-center justify-between gap-3 bg-tg-card p-4 rounded-xl border border-tg-border">
                 <div class="flex items-center gap-2">
                     <div class="relative">
@@ -118,6 +158,7 @@
                     <thead class="bg-slate-900/60 text-slate-400 border-b border-tg-border text-xs uppercase">
                         <tr>
                             <th class="p-3.5">Yasaklı Kelime / Kalıp</th>
+                            <th class="p-3.5">Geçerli Olduğu Grup / Kanal</th>
                             <th class="p-3.5">Eşleşme Türü</th>
                             <th class="p-3.5">Özelden Uyar</th>
                             <th class="p-3.5">Özel Mesaj Şablonu</th>
@@ -137,7 +178,7 @@
             <div class="flex flex-wrap items-center justify-between gap-3 bg-tg-card p-4 rounded-xl border border-tg-border">
                 <div>
                     <h2 class="text-sm font-semibold text-white">Yasaklı Numara / ID / @Kullanıcı Listesi</h2>
-                    <p class="text-xs text-slate-400">Bu kişiler mesaj attığında anında silinir ve isteğe bağlı özelden uyarılır</p>
+                    <p class="text-xs text-slate-400">Bu kişiler belirlenen grupta mesaj attığında anında silinir ve isteğe bağlı özelden uyarılır</p>
                 </div>
                 <button onclick="openUserModal()" class="bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-rose-600/20 transition">
                     <i class="fa-solid fa-user-plus"></i> Yasaklı Numara/Kullanıcı Ekle
@@ -149,6 +190,7 @@
                     <thead class="bg-slate-900/60 text-slate-400 border-b border-tg-border text-xs uppercase">
                         <tr>
                             <th class="p-3.5">Kimlik / Telefon / @Kullanıcı</th>
+                            <th class="p-3.5">Geçerli Olduğu Grup</th>
                             <th class="p-3.5">Açıklama / Not</th>
                             <th class="p-3.5">Özelden Uyar</th>
                             <th class="p-3.5">Durum</th>
@@ -202,16 +244,23 @@
             <div class="bg-tg-card p-6 rounded-xl border border-tg-border flex flex-col gap-4 max-w-3xl">
                 <div>
                     <h2 class="text-base font-semibold text-white">Canlı Mesaj & Kural Simülatörü</h2>
-                    <p class="text-xs text-slate-400">Buraya bir mesaj veya kullanıcı yazarak kuralın çalışıp çalışmayacağını ve ne mesaj gideceğini anında test edebilirsiniz.</p>
+                    <p class="text-xs text-slate-400">Belirli bir grup seçerek mesajın o gruptaki kurallara göre silinip silinmeyeceğini ve hangi uyarının gideceğini test edin.</p>
                 </div>
 
                 <div class="flex flex-col gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Test Edilecek Grup / Kanal</label>
+                        <select id="test-chat-select" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+                            <option value="all">🌐 Herhangi Bir Grup (Genel Kurallar)</option>
+                        </select>
+                    </div>
+
                     <div>
                         <label class="block text-xs font-medium text-slate-300 mb-1">Test Mesajı</label>
                         <textarea id="test-text" rows="3" class="w-full bg-slate-900 border border-tg-border rounded-lg p-3 text-sm text-white focus:outline-none focus:border-blue-500" placeholder="Örn: Bu gruptakiler salak doluşmuş..."></textarea>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-medium text-slate-300 mb-1">Gönderen Kullanıcı Adı</label>
                             <input type="text" id="test-username" value="ornek_kullanici" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
@@ -219,10 +268,6 @@
                         <div>
                             <label class="block text-xs font-medium text-slate-300 mb-1">Gönderen ID / Numara</label>
                             <input type="text" id="test-sender-id" value="12345678" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-300 mb-1">Örnek Grup Adı</label>
-                            <input type="text" id="test-group-name" value="Kripto Sohbet Grubu" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
                         </div>
                     </div>
 
@@ -288,7 +333,13 @@
             </div>
             <div class="space-y-3">
                 <div>
-                    <label class="block text-xs font-medium text-slate-300 mb-1">Yasaklı Kelime / Cümle (Çoklu eklemek için virgül veya yeni satır kullanabilirsiniz)</label>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Hangi Grupta / Kanalda Geçerli Olsun?</label>
+                    <select id="modal-word-chat" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                        <option value="all" data-title="Tüm Gruplar">🌐 Tüm Gruplarda ve Kanallarda Geçerli (Genel Kural)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Yasaklı Kelime / Cümle (Çoklu eklemek için virgül veya yeni satır kullanın)</label>
                     <textarea id="modal-word-text" rows="3" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500" placeholder="Örn: salak, küfür, dolandırıcı, vb..."></textarea>
                 </div>
                 <div>
@@ -324,6 +375,12 @@
             </div>
             <div class="space-y-3">
                 <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Hangi Grupta / Kanalda Yasaklansın?</label>
+                    <select id="modal-user-chat" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                        <option value="all" data-title="Tüm Gruplar">🌐 Tüm Gruplarda ve Kanallarda Geçerli (Genel Kural)</option>
+                    </select>
+                </div>
+                <div>
                     <label class="block text-xs font-medium text-slate-300 mb-1">Telefon Numarası, Kullanıcı ID veya @KullanıcıAdı</label>
                     <input type="text" id="modal-user-identifier" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500" placeholder="Örn: +905488715274 veya 12345678 veya @spamci">
                 </div>
@@ -343,6 +400,30 @@
         </div>
     </div>
 
+    <!-- MODAL: MANUEL CHAT ID EKLE -->
+    <div id="modal-manual-chat" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-tg-card border border-tg-border w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-tg-border pb-3">
+                <h3 class="font-bold text-white text-base">Manuel Grup / Kanal ID Ekle</h3>
+                <button onclick="closeManualChatModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Sohbet ID (Chat ID)</label>
+                    <input type="text" id="manual-chat-id" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500" placeholder="Örn: -100234567890">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Grup / Kanal Adı (Hatırlamak için)</label>
+                    <input type="text" id="manual-chat-title" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500" placeholder="Örn: VIP Kripto Grubu">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t border-tg-border">
+                <button onclick="closeManualChatModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm">İptal</button>
+                <button onclick="submitManualChat()" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold">Ekle</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: HESAP BAĞLA (QR VEYA TELEFON) -->
     <div id="modal-account" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-tg-card border border-tg-border w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
@@ -351,13 +432,11 @@
                 <button onclick="closeAccountModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
 
-            <!-- Seçim Butonları -->
             <div class="grid grid-cols-2 gap-2 text-xs font-medium">
                 <button onclick="switchLoginMode('qr')" id="btn-login-qr" class="py-2 rounded-lg bg-blue-600 text-white font-semibold">QR Kod ile Giriş</button>
                 <button onclick="switchLoginMode('phone')" id="btn-login-phone" class="py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white">Telefon No ile Giriş</button>
             </div>
 
-            <!-- QR Kod Bölümü -->
             <div id="section-qr" class="flex flex-col items-center justify-center py-4 gap-3 text-center">
                 <div id="qr-container" class="w-56 h-56 bg-white rounded-xl flex items-center justify-center shadow-inner overflow-hidden p-2">
                     <i class="fa-solid fa-spinner fa-spin text-3xl text-slate-500"></i>
@@ -368,7 +447,6 @@
                 <div id="qr-status-text" class="text-xs text-yellow-400">QR Kod taranması bekleniyor...</div>
             </div>
 
-            <!-- Telefon No Bölümü -->
             <div id="section-phone" class="hidden flex flex-col gap-3 py-2">
                 <div id="phone-step-1" class="flex flex-col gap-3">
                     <div>
@@ -391,19 +469,17 @@
                 </div>
             </div>
 
-            <!-- Bağlı Hesap Listesi -->
             <div id="connected-accounts-list" class="border-t border-tg-border pt-3 mt-2">
                 <div class="text-xs font-semibold text-slate-400 uppercase mb-2">Bağlı Hesaplar</div>
-                <div id="accounts-items" class="space-y-2">
-                    <!-- Dinamik liste -->
-                </div>
+                <div id="accounts-items" class="space-y-2"></div>
             </div>
         </div>
     </div>
 
     <!-- JAVASCRIPT LOGIC -->
     <script>
-        let currentTab = 'words';
+        let currentTab = 'chats';
+        let chatsData = [];
         let wordsData = [];
         let usersData = [];
         let logsData = [];
@@ -413,6 +489,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             fetchAccounts();
+            fetchChats();
             fetchWords();
             fetchUsers();
             fetchLogs();
@@ -437,6 +514,119 @@
             currentTab = tab;
         }
 
+        // --- GRUPLAR & KANALLAR ---
+        async function fetchChats() {
+            try {
+                const res = await fetch('/api/chats');
+                chatsData = await res.json();
+                document.getElementById('badge-chats-count').textContent = chatsData.length;
+                renderChats();
+                updateChatDropdowns();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderChats() {
+            const tbody = document.getElementById('chats-table-body');
+            if (chatsData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 text-sm">
+                    Henüz bağlı bir Telegram hesabınız yok veya grup bulunamadı. <br>
+                    <button onclick="openAccountModal()" class="mt-2 text-blue-400 hover:underline">Hesap Bağla</button> veya 
+                    <button onclick="openManualChatModal()" class="mt-2 text-blue-400 hover:underline">Manuel ID Ekle</button>
+                </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = chatsData.map(c => {
+                const chatWords = wordsData.filter(w => isMatchChatId(w.chat_id, c.id));
+                const chatUsers = usersData.filter(u => isMatchChatId(u.chat_id, c.id));
+                const totalRules = chatWords.length + chatUsers.length;
+
+                return `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="p-3.5 font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid ${c.is_channel ? 'fa-bullhorn text-cyan-400' : 'fa-users text-blue-400'}"></i>
+                        ${escapeHtml(c.title)}
+                    </td>
+                    <td class="p-3.5 text-xs font-mono text-slate-400">${c.id}</td>
+                    <td class="p-3.5 text-xs text-slate-400">
+                        <span class="bg-slate-800 px-2 py-0.5 rounded border border-tg-border">${c.is_channel ? 'Kanal' : 'Grup'}</span>
+                    </td>
+                    <td class="p-3.5 text-xs text-slate-300">
+                        <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-medium">
+                            ${totalRules} Özel Kural
+                        </span>
+                    </td>
+                    <td class="p-3.5">
+                        <button onclick="toggleChat('${c.id}')" class="text-xs px-2.5 py-1 rounded-full font-medium ${c.is_active ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500 border border-slate-700'}">
+                            ${c.is_active ? 'Korumada' : 'Pasif'}
+                        </button>
+                    </td>
+                    <td class="p-3.5 text-right">
+                        <button onclick="openWordModalForChat('${c.id}', '${escapeHtml(c.title)}')" class="text-xs bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded-lg transition">
+                            <i class="fa-solid fa-plus mr-1"></i> Bu Gruba Kelime Ekle
+                        </button>
+                    </td>
+                </tr>
+            `}).join('');
+        }
+
+        function isMatchChatId(a, b) {
+            if (!a || !b) return false;
+            return a.replace('-100', '').replace('-', '') === b.replace('-100', '').replace('-', '');
+        }
+
+        function updateChatDropdowns() {
+            const wordSelect = document.getElementById('modal-word-chat');
+            const userSelect = document.getElementById('modal-user-chat');
+            const testSelect = document.getElementById('test-chat-select');
+
+            const optionsHtml = `
+                <option value="all" data-title="Tüm Gruplar">🌐 Tüm Gruplarda ve Kanallarda Geçerli (Genel Kural)</option>
+                ${chatsData.map(c => `
+                    <option value="${c.id}" data-title="${escapeHtml(c.title)}">${c.is_channel ? '📢 Kanal:' : '👥 Grup:'} ${escapeHtml(c.title)} (${c.id})</option>
+                `).join('')}
+            `;
+
+            wordSelect.innerHTML = optionsHtml;
+            userSelect.innerHTML = optionsHtml;
+            testSelect.innerHTML = optionsHtml;
+        }
+
+        async function toggleChat(chatId) {
+            await fetch(`/api/chats/${chatId}/toggle`, { method: 'POST' });
+            fetchChats();
+        }
+
+        function openManualChatModal() {
+            document.getElementById('modal-manual-chat').classList.remove('hidden');
+        }
+
+        function closeManualChatModal() {
+            document.getElementById('modal-manual-chat').classList.add('hidden');
+        }
+
+        async function submitManualChat() {
+            const chat_id = document.getElementById('manual-chat-id').value.trim();
+            const chat_title = document.getElementById('manual-chat-title').value.trim();
+            if (!chat_id) { alert('Lütfen Sohbet ID girin.'); return; }
+
+            await fetch('/api/chats', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ chat_id, chat_title })
+            });
+            closeManualChatModal();
+            fetchChats();
+        }
+
+        function openWordModalForChat(chatId, chatTitle) {
+            openWordModal();
+            const select = document.getElementById('modal-word-chat');
+            select.value = chatId;
+        }
+
         // --- HESAP İŞLEMLERİ ---
         async function fetchAccounts() {
             try {
@@ -451,7 +641,6 @@
 
         function renderAccountHeader(accounts) {
             const active = accounts.find(a => a.is_running);
-            const pill = document.getElementById('account-status-pill');
             const nameEl = document.getElementById('account-name');
             const subEl = document.getElementById('account-sub');
             const avatarEl = document.getElementById('account-avatar');
@@ -500,12 +689,14 @@
         async function toggleAccount(id) {
             await fetch(`/api/accounts/${id}/toggle`, { method: 'POST' });
             fetchAccounts();
+            fetchChats();
         }
 
         async function deleteAccount(id) {
             if (!confirm('Hesap bağlantısını silmek istediğinize emin misiniz?')) return;
             await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
             fetchAccounts();
+            fetchChats();
         }
 
         function openAccountModal() {
@@ -570,6 +761,7 @@
                     setTimeout(() => {
                         closeAccountModal();
                         fetchAccounts();
+                        fetchChats();
                     }, 1000);
                 } else if (data.status === 'expired') {
                     clearInterval(qrPollInterval);
@@ -611,6 +803,7 @@
                 alert('Giriş başarılı!');
                 closeAccountModal();
                 fetchAccounts();
+                fetchChats();
             } else {
                 alert('Hata: ' + (data.message || 'Giriş yapılamadı'));
             }
@@ -622,6 +815,7 @@
             wordsData = await res.json();
             document.getElementById('badge-words-count').textContent = wordsData.length;
             renderWords();
+            if (chatsData.length > 0) renderChats();
         }
 
         function renderWords() {
@@ -630,18 +824,23 @@
             const filtered = wordsData.filter(w => w.word.toLowerCase().includes(search));
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 text-sm">Yasaklı kelime bulunamadı.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-500 text-sm">Yasaklı kelime bulunamadı.</td></tr>`;
                 return;
             }
 
             tbody.innerHTML = filtered.map(w => `
                 <tr class="hover:bg-slate-800/40 transition">
                     <td class="p-3.5 font-semibold text-rose-400">${escapeHtml(w.word)}</td>
+                    <td class="p-3.5 text-xs text-slate-300">
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded ${w.chat_id === 'all' ? 'bg-slate-800 text-slate-400' : 'bg-blue-500/10 text-cyan-400 border border-cyan-500/20 font-medium'}">
+                            ${w.chat_id === 'all' ? '🌐 Tüm Gruplar' : '🎯 ' + escapeHtml(w.chat_title || w.chat_id)}
+                        </span>
+                    </td>
                     <td class="p-3.5 text-xs text-slate-400">
                         <span class="bg-slate-800 px-2 py-0.5 rounded border border-tg-border">${w.match_type === 'contains' ? 'İçerir' : (w.match_type === 'exact' ? 'Tam Kelime' : 'Regex')}</span>
                     </td>
                     <td class="p-3.5">
-                        ${w.send_dm ? '<span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Evet (DM Gönder)</span>' : '<span class="text-xs text-slate-500">Hayır</span>'}
+                        ${w.send_dm ? '<span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Evet</span>' : '<span class="text-xs text-slate-500">Hayır</span>'}
                     </td>
                     <td class="p-3.5 text-xs text-slate-400 max-w-xs truncate" title="${escapeHtml(w.custom_dm_message || 'Genel Şablon')}">
                         ${w.custom_dm_message ? escapeHtml(w.custom_dm_message) : '<span class="text-slate-600 italic">Genel Şablon</span>'}
@@ -679,6 +878,9 @@
         async function submitWord() {
             const words = document.getElementById('modal-word-text').value.trim();
             if (!words) { alert('Lütfen en az bir kelime girin.'); return; }
+            const selectEl = document.getElementById('modal-word-chat');
+            const chat_id = selectEl.value;
+            const chat_title = selectEl.options[selectEl.selectedIndex].getAttribute('data-title') || 'Tüm Gruplar';
             const match_type = document.getElementById('modal-word-type').value;
             const send_dm = document.getElementById('modal-word-dm').checked;
             const custom_dm_message = document.getElementById('modal-word-custom-dm').value.trim();
@@ -686,7 +888,7 @@
             await fetch('/api/words', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ words, match_type, send_dm, custom_dm_message })
+                body: JSON.stringify({ words, match_type, chat_id, chat_title, send_dm, custom_dm_message })
             });
 
             closeWordModal();
@@ -710,12 +912,13 @@
             usersData = await res.json();
             document.getElementById('badge-users-count').textContent = usersData.length;
             renderUsers();
+            if (chatsData.length > 0) renderChats();
         }
 
         function renderUsers() {
             const tbody = document.getElementById('users-table-body');
             if (usersData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 text-sm">Yasaklı kullanıcı veya numara ekli değil.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 text-sm">Yasaklı kullanıcı veya numara ekli değil.</td></tr>`;
                 return;
             }
 
@@ -723,6 +926,11 @@
                 <tr class="hover:bg-slate-800/40 transition">
                     <td class="p-3.5 font-semibold text-rose-400 flex items-center gap-2">
                         <i class="fa-solid fa-ban text-xs"></i> ${escapeHtml(u.identifier)}
+                    </td>
+                    <td class="p-3.5 text-xs text-slate-300">
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded ${u.chat_id === 'all' ? 'bg-slate-800 text-slate-400' : 'bg-blue-500/10 text-cyan-400 border border-cyan-500/20 font-medium'}">
+                            ${u.chat_id === 'all' ? '🌐 Tüm Gruplar' : '🎯 ' + escapeHtml(u.chat_title || u.chat_id)}
+                        </span>
                     </td>
                     <td class="p-3.5 text-xs text-slate-300">${escapeHtml(u.note || '-')}</td>
                     <td class="p-3.5">
@@ -756,13 +964,16 @@
         async function submitUser() {
             const identifier = document.getElementById('modal-user-identifier').value.trim();
             if (!identifier) { alert('Lütfen kimlik / numara girin.'); return; }
+            const selectEl = document.getElementById('modal-user-chat');
+            const chat_id = selectEl.value;
+            const chat_title = selectEl.options[selectEl.selectedIndex].getAttribute('data-title') || 'Tüm Gruplar';
             const note = document.getElementById('modal-user-note').value.trim();
             const send_dm = document.getElementById('modal-user-dm').checked;
 
             const res = await fetch('/api/users', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ identifier, note, send_dm })
+                body: JSON.stringify({ identifier, chat_id, chat_title, note, send_dm })
             });
 
             if (res.ok) {
@@ -841,14 +1052,16 @@
         async function runTest() {
             const message_text = document.getElementById('test-text').value.trim();
             if (!message_text) { alert('Lütfen test edilecek bir mesaj yazın.'); return; }
+            const selectEl = document.getElementById('test-chat-select');
+            const chat_id = selectEl.value;
+            const chat_title = selectEl.options[selectEl.selectedIndex].getAttribute('data-title') || 'Test Grubu';
             const sender_username = document.getElementById('test-username').value.trim();
             const sender_id = document.getElementById('test-sender-id').value.trim();
-            const chat_title = document.getElementById('test-group-name').value.trim();
 
             const res = await fetch('/api/test-message', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ message_text, sender_username, sender_id, chat_title })
+                body: JSON.stringify({ message_text, chat_id, chat_title, sender_username, sender_id })
             });
 
             const data = await res.json();
@@ -860,18 +1073,19 @@
             if (data.would_delete) {
                 box.className = 'mt-4 p-4 rounded-xl border border-rose-500/30 bg-rose-950/20';
                 header.className = 'font-bold flex items-center gap-2 text-sm text-rose-400';
-                header.innerHTML = '<i class="fa-solid fa-circle-xmark text-base"></i> BU MESAJ ANINDA OTOMATİK SİLİNİR!';
+                header.innerHTML = '<i class="fa-solid fa-circle-xmark text-base"></i> BU MESAJ BU GRUPTA ANINDA SİLİNİR!';
                 
                 details.innerHTML = `
-                    <div><strong>Tetikleyen Kural:</strong> <span class="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded font-mono">${data.trigger_type === 'word' ? 'Yasaklı Kelime' : 'Yasaklı Kullanıcı'}: ${escapeHtml(data.trigger_value)}</span></div>
+                    <div><strong>Eşleşen Kural:</strong> <span class="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded font-mono">${data.trigger_type === 'word' ? 'Yasaklı Kelime' : 'Yasaklı Kullanıcı'}: ${escapeHtml(data.trigger_value)}</span></div>
+                    <div><strong>Kuralın Tanımlı Olduğu Grup:</strong> <span class="text-cyan-400">${escapeHtml(data.matched_chat || 'Tüm Gruplar')}</span></div>
                     <div><strong>Özelden Mesaj Durumu:</strong> ${data.send_dm ? '<span class="text-emerald-400">Özelden DM Bildirimi Açık</span>' : '<span class="text-slate-400">Kapalı (Sessizce Silinir)</span>'}</div>
                     ${data.dm_preview ? `<div class="mt-2 p-3 bg-slate-900 rounded-lg border border-tg-border"><strong>Kullanıcıya Gönderilecek DM:</strong><br><pre class="whitespace-pre-wrap font-sans text-slate-300 mt-1">${escapeHtml(data.dm_preview)}</pre></div>` : ''}
                 `;
             } else {
                 box.className = 'mt-4 p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20';
                 header.className = 'font-bold flex items-center gap-2 text-sm text-emerald-400';
-                header.innerHTML = '<i class="fa-solid fa-circle-check text-base"></i> BU MESAJ GÜVENLİ (SİLİNMEZ)';
-                details.innerHTML = '<div>Mesaj herhangi bir yasaklı kelimeye veya yasaklı kullanıcıya takılmadı.</div>';
+                header.innerHTML = '<i class="fa-solid fa-circle-check text-base"></i> BU MESAJ BU GRUP İÇİN GÜVENLİ (SİLİNMEZ)';
+                details.innerHTML = '<div>Mesaj bu grup için belirlenen herhangi bir yasaklı kelimeye veya kullanıcıya takılmadı.</div>';
             }
         }
 

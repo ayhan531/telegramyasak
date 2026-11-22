@@ -201,6 +201,14 @@ def format_dm_message(template: str, user_name: str, chat_title: str, reason: st
     msg = msg.replace("{message_preview}", preview)
     return msg
 
+def is_chat_match(rule_chat_id: str, incoming_chat_id: str) -> bool:
+    """Kuralın belirli bir sohbete mi yoksa tüm sohbetlere mi ait olduğunu denetler."""
+    if not rule_chat_id or str(rule_chat_id).strip().lower() in ["all", "tüm gruplar", ""]:
+        return True
+    r = str(rule_chat_id).strip().replace("-100", "").replace("-", "")
+    i = str(incoming_chat_id).strip().replace("-100", "").replace("-", "")
+    return r == i
+
 async def handle_incoming_message(client: TelegramClient, event):
     """Gelen veya düzenlenen her mesajı filtre kurallarına göre inceler ve gerekiyorsa siler."""
     try:
@@ -235,7 +243,8 @@ async def handle_incoming_message(client: TelegramClient, event):
             selected_chats = get_setting(db, "selected_chat_ids", "").strip()
             if not monitor_all and selected_chats:
                 allowed_ids = [c.strip() for c in selected_chats.split(",") if c.strip()]
-                if chat_id not in allowed_ids and str(abs(int(chat_id))) not in allowed_ids:
+                matched_allowed = any(is_chat_match(allowed_id, chat_id) for allowed_id in allowed_ids)
+                if not matched_allowed:
                     return
 
             # Yönetici mesajlarını yoksayma ayarı
@@ -254,6 +263,10 @@ async def handle_incoming_message(client: TelegramClient, event):
             user_filters = db.query(UserFilter).filter(UserFilter.is_active == True).all()
             matched_user_rule = None
             for uf in user_filters:
+                # Kural belirli bir gruba özel tanımlanmışsa sadece o grupta çalışsın
+                if not is_chat_match(uf.chat_id, chat_id):
+                    continue
+
                 if check_user_match(uf.identifier, sender_id, sender_username, sender_phone):
                     matched_user_rule = uf
                     break
@@ -314,6 +327,10 @@ async def handle_incoming_message(client: TelegramClient, event):
             word_filters = db.query(WordFilter).filter(WordFilter.is_active == True).all()
             matched_word_rule = None
             for wf in word_filters:
+                # Kural belirli bir gruba özel tanımlanmışsa sadece o grupta çalışsın
+                if not is_chat_match(wf.chat_id, chat_id):
+                    continue
+
                 if check_word_match(wf.word, message_text, wf.match_type):
                     matched_word_rule = wf
                     break
@@ -415,21 +432,33 @@ async def init_all_active_accounts():
     finally:
         db.close()
 
-async def get_account_dialogs(account_id: int):
-    """Hesabın yönetici veya üye olduğu grup ve kanalları listeler."""
-    client = active_clients.get(account_id)
-    if not client:
-        return []
+async def get_all_dialogs() -> List[dict]:
+    """Tüm aktif hesapların üye/yönetici olduğu grup ve kanalları toplar."""
     dialogs = []
-    try:
-        async for dialog in client.iter_dialogs():
-            if dialog.is_group or dialog.is_channel:
-                dialogs.append({
-                    "id": str(dialog.id),
-                    "title": dialog.name,
-                    "is_group": dialog.is_group,
-                    "is_channel": dialog.is_channel
-                })
-    except Exception as e:
-        print(f"[Bot Service] get_dialogs error: {e}")
+    seen_ids = set()
+    for acc_id, client in active_clients.items():
+        if not client.is_connected():
+            continue
+        try:
+            async for dialog in client.iter_dialogs():
+                if dialog.is_group or dialog.is_channel:
+                    c_id = str(dialog.id)
+                    if c_id not in seen_ids:
+                        seen_ids.add(c_id)
+                        is_admin = False
+                        try:
+                            perms = await client.get_permissions(dialog.entity, 'me')
+                            is_admin = perms.is_admin or perms.is_creator
+                        except Exception:
+                            is_admin = True
+                            
+                        dialogs.append({
+                            "id": c_id,
+                            "title": dialog.name or "İsimsiz Sohbet",
+                            "is_group": dialog.is_group,
+                            "is_channel": dialog.is_channel,
+                            "is_admin": is_admin
+                        })
+        except Exception as e:
+            print(f"[Bot Service] get_all_dialogs error ({acc_id}): {e}")
     return dialogs
