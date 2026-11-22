@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="tr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Yasak Mesaj Silme ve Uyarı Botu</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        tg: {
+                            dark: '#0f172a',
+                            card: '#1e293b',
+                            border: '#334155',
+                            accent: '#38bdf8',
+                            blue: '#2563eb',
+                            hover: '#1d4ed8',
+                            danger: '#ef4444',
+                            success: '#10b981'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-tg-dark text-slate-100 min-h-screen flex flex-col">
+
+    <!-- ÜST BAŞLIK & DURUM ÇUBUĞU -->
+    <header class="bg-tg-card border-b border-tg-border sticky top-0 z-40 px-4 py-3 shadow-md">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                    <i class="fa-solid fa-shield-halved text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-white flex items-center gap-2">
+                        Telegram Koruma & Yasak Mesaj Botu
+                        <span id="system-status-badge" class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Sistem Aktif
+                        </span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Yasaklı kelimeleri ve spam göndericileri anında siler, isteğe göre özelden uyarır</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <!-- Aktif Hesap Rozeti -->
+                <div id="account-status-pill" class="bg-slate-800/80 border border-tg-border rounded-xl px-3 py-1.5 flex items-center gap-2.5">
+                    <div id="account-avatar" class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white uppercase">
+                        ?
+                    </div>
+                    <div class="text-left text-xs leading-tight">
+                        <div id="account-name" class="font-medium text-slate-200">Hesap Aranıyor...</div>
+                        <div id="account-sub" class="text-slate-400 text-[10px]">Bağlantı kontrolü</div>
+                    </div>
+                    <button onclick="openAccountModal()" class="ml-2 text-xs bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg transition">
+                        Hesap Bağla
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ANA İÇERİK & TABLAR -->
+    <main class="max-w-7xl mx-auto w-full p-4 md:p-6 flex-1 flex flex-col gap-6">
+
+        <!-- TAB BUTONLARI -->
+        <div class="flex border-b border-tg-border gap-2 overflow-x-auto pb-1 text-sm font-medium">
+            <button onclick="switchTab('words')" id="tab-btn-words" class="tab-btn px-4 py-2.5 rounded-t-lg border-b-2 border-blue-500 text-blue-400 bg-tg-card/50 flex items-center gap-2">
+                <i class="fa-solid fa-font"></i> Yasaklı Kelimeler
+                <span id="badge-words-count" class="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full">0</span>
+            </button>
+            <button onclick="switchTab('users')" id="tab-btn-users" class="tab-btn px-4 py-2.5 rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-user-slash"></i> Yasaklı Numaralar & Kişiler
+                <span id="badge-users-count" class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-full">0</span>
+            </button>
+            <button onclick="switchTab('logs')" id="tab-btn-logs" class="tab-btn px-4 py-2.5 rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-clock-rotate-left"></i> Silinen Mesaj Geçmişi
+                <span id="badge-logs-count" class="bg-rose-500/20 text-rose-300 text-xs px-2 py-0.5 rounded-full">0</span>
+            </button>
+            <button onclick="switchTab('tester')" id="tab-btn-tester" class="tab-btn px-4 py-2.5 rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-vial"></i> Canlı Kural Testi
+            </button>
+            <button onclick="switchTab('settings')" id="tab-btn-settings" class="tab-btn px-4 py-2.5 rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-sliders"></i> Bot Ayarları & Gruplar
+            </button>
+        </div>
+
+        <!-- TAB 1: YASAKLI KELİMELER -->
+        <section id="tab-words" class="tab-content flex flex-col gap-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-tg-card p-4 rounded-xl border border-tg-border">
+                <div class="flex items-center gap-2">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                        <input type="text" id="words-search" oninput="renderWords()" placeholder="Kelimelerde ara..." class="bg-slate-900 border border-tg-border rounded-lg pl-9 pr-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500 w-64">
+                    </div>
+                </div>
+                <button onclick="openWordModal()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-blue-600/20 transition">
+                    <i class="fa-solid fa-plus"></i> Yeni Yasaklı Kelime Ekle
+                </button>
+            </div>
+
+            <div class="bg-tg-card border border-tg-border rounded-xl overflow-hidden shadow-sm">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900/60 text-slate-400 border-b border-tg-border text-xs uppercase">
+                        <tr>
+                            <th class="p-3.5">Yasaklı Kelime / Kalıp</th>
+                            <th class="p-3.5">Eşleşme Türü</th>
+                            <th class="p-3.5">Özelden Uyar</th>
+                            <th class="p-3.5">Özel Mesaj Şablonu</th>
+                            <th class="p-3.5">Durum</th>
+                            <th class="p-3.5 text-right">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody id="words-table-body" class="divide-y divide-tg-border">
+                        <!-- Javascript ile dolacak -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- TAB 2: YASAKLI NUMARALAR VE KULLANICILAR -->
+        <section id="tab-users" class="tab-content hidden flex flex-col gap-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-tg-card p-4 rounded-xl border border-tg-border">
+                <div>
+                    <h2 class="text-sm font-semibold text-white">Yasaklı Numara / ID / @Kullanıcı Listesi</h2>
+                    <p class="text-xs text-slate-400">Bu kişiler mesaj attığında anında silinir ve isteğe bağlı özelden uyarılır</p>
+                </div>
+                <button onclick="openUserModal()" class="bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-rose-600/20 transition">
+                    <i class="fa-solid fa-user-plus"></i> Yasaklı Numara/Kullanıcı Ekle
+                </button>
+            </div>
+
+            <div class="bg-tg-card border border-tg-border rounded-xl overflow-hidden shadow-sm">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900/60 text-slate-400 border-b border-tg-border text-xs uppercase">
+                        <tr>
+                            <th class="p-3.5">Kimlik / Telefon / @Kullanıcı</th>
+                            <th class="p-3.5">Açıklama / Not</th>
+                            <th class="p-3.5">Özelden Uyar</th>
+                            <th class="p-3.5">Durum</th>
+                            <th class="p-3.5 text-right">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-table-body" class="divide-y divide-tg-border">
+                        <!-- Javascript ile dolacak -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- TAB 3: SİLİNEN MESAJ GEÇMİŞİ -->
+        <section id="tab-logs" class="tab-content hidden flex flex-col gap-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-tg-card p-4 rounded-xl border border-tg-border">
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Canlı İzleme Açık
+                    </span>
+                    <button onclick="fetchLogs()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-lg border border-tg-border">
+                        <i class="fa-solid fa-rotate-right mr-1"></i> Yenile
+                    </button>
+                </div>
+                <button onclick="clearLogs()" class="text-xs bg-slate-800 hover:bg-rose-900/40 text-rose-400 border border-rose-500/30 px-3 py-1.5 rounded-lg transition">
+                    <i class="fa-solid fa-trash-can mr-1"></i> Logları Temizle
+                </button>
+            </div>
+
+            <div class="bg-tg-card border border-tg-border rounded-xl overflow-hidden shadow-sm">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900/60 text-slate-400 border-b border-tg-border text-xs uppercase">
+                        <tr>
+                            <th class="p-3">Tarih/Saat</th>
+                            <th class="p-3">Grup / Kanal</th>
+                            <th class="p-3">Gönderen</th>
+                            <th class="p-3">Silinen Mesaj</th>
+                            <th class="p-3">Neden</th>
+                            <th class="p-3">Özelden Mesaj</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-table-body" class="divide-y divide-tg-border">
+                        <!-- Javascript ile dolacak -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- TAB 4: TEST & SİMÜLASYON -->
+        <section id="tab-tester" class="tab-content hidden flex flex-col gap-4">
+            <div class="bg-tg-card p-6 rounded-xl border border-tg-border flex flex-col gap-4 max-w-3xl">
+                <div>
+                    <h2 class="text-base font-semibold text-white">Canlı Mesaj & Kural Simülatörü</h2>
+                    <p class="text-xs text-slate-400">Buraya bir mesaj veya kullanıcı yazarak kuralın çalışıp çalışmayacağını ve ne mesaj gideceğini anında test edebilirsiniz.</p>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Test Mesajı</label>
+                        <textarea id="test-text" rows="3" class="w-full bg-slate-900 border border-tg-border rounded-lg p-3 text-sm text-white focus:outline-none focus:border-blue-500" placeholder="Örn: Bu gruptakiler salak doluşmuş..."></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Gönderen Kullanıcı Adı</label>
+                            <input type="text" id="test-username" value="ornek_kullanici" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Gönderen ID / Numara</label>
+                            <input type="text" id="test-sender-id" value="12345678" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Örnek Grup Adı</label>
+                            <input type="text" id="test-group-name" value="Kripto Sohbet Grubu" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+
+                    <button onclick="runTest()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition mt-2">
+                        <i class="fa-solid fa-play"></i> Test Et
+                    </button>
+                </div>
+
+                <!-- Test Sonucu Kutusu -->
+                <div id="test-result-box" class="hidden mt-4 p-4 rounded-xl border">
+                    <div id="test-result-header" class="font-bold flex items-center gap-2 text-sm"></div>
+                    <div id="test-result-details" class="text-xs text-slate-300 mt-2 space-y-2"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 5: AYARLAR -->
+        <section id="tab-settings" class="tab-content hidden flex flex-col gap-4">
+            <div class="bg-tg-card p-6 rounded-xl border border-tg-border max-w-3xl flex flex-col gap-5">
+                <div>
+                    <h2 class="text-base font-semibold text-white">Genel Bot Ayarları</h2>
+                    <p class="text-xs text-slate-400">Silme kurallarının ve otomatik özel mesajın genel davranışını belirleyin.</p>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Varsayılan Özel Mesaj Şablonu</label>
+                        <p class="text-[11px] text-slate-400 mb-1.5">Kullanılabilir değişkenler: <code class="text-cyan-400">{user_name}</code>, <code class="text-cyan-400">{chat_title}</code>, <code class="text-cyan-400">{time}</code>, <code class="text-cyan-400">{reason}</code>, <code class="text-cyan-400">{message_preview}</code></p>
+                        <textarea id="setting-dm-template" rows="4" class="w-full bg-slate-900 border border-tg-border rounded-lg p-3 text-sm text-white focus:outline-none focus:border-blue-500"></textarea>
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-tg-border">
+                        <div>
+                            <div class="text-sm font-medium text-slate-200">Grup Yöneticilerinin Mesajlarını Yoksay</div>
+                            <div class="text-xs text-slate-400">Yöneticiler veya kurucular yasaklı kelime kullansa bile mesajları silinmez</div>
+                        </div>
+                        <input type="checkbox" id="setting-ignore-admins" class="w-5 h-5 accent-blue-600 rounded">
+                    </div>
+
+                    <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-tg-border">
+                        <div>
+                            <div class="text-sm font-medium text-slate-200">Tüm Yönettiğim Grup ve Kanalları Koru</div>
+                            <div class="text-xs text-slate-400">Aktif hesabın üye/yönetici olduğu tüm sohbetlerde kuralları otomatik işletir</div>
+                        </div>
+                        <input type="checkbox" id="setting-monitor-all" class="w-5 h-5 accent-blue-600 rounded">
+                    </div>
+
+                    <button onclick="saveSettings()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2 px-6 rounded-lg text-sm transition">
+                        Ayarları Kaydet
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL: KELİME EKLE -->
+    <div id="modal-word" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-tg-card border border-tg-border w-full max-w-lg rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-tg-border pb-3">
+                <h3 class="font-bold text-white text-base">Yasaklı Kelime veya Cümle Ekle</h3>
+                <button onclick="closeWordModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Yasaklı Kelime / Cümle (Çoklu eklemek için virgül veya yeni satır kullanabilirsiniz)</label>
+                    <textarea id="modal-word-text" rows="3" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500" placeholder="Örn: salak, küfür, dolandırıcı, vb..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Eşleşme Türü</label>
+                    <select id="modal-word-type" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                        <option value="contains">İçerir (Mesajın içinde herhangi bir yerde geçerse sil)</option>
+                        <option value="exact">Tam Kelime (Yalnızca bağımsız tam kelime eşleştiğinde sil)</option>
+                        <option value="regex">Regex (Düzenli ifade)</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="modal-word-dm" onchange="toggleCustomDmInput()" class="w-4 h-4 accent-blue-600 rounded">
+                    <label for="modal-word-dm" class="text-xs text-slate-300 font-medium">Bu kelime silindiğinde kullanıcıya özelden mesaj gönder</label>
+                </div>
+                <div id="modal-custom-dm-wrapper" class="hidden">
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Bu Kelimeye Özel Uyarı Metni (Boş bırakılırsa genel şablon kullanılır)</label>
+                    <textarea id="modal-word-custom-dm" rows="2" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500" placeholder="Örn: Gönderdiğiniz bu mesaj gruptan silinmiştir."></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t border-tg-border">
+                <button onclick="closeWordModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm">İptal</button>
+                <button onclick="submitWord()" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: KULLANICI / NUMARA EKLE -->
+    <div id="modal-user" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-tg-card border border-tg-border w-full max-w-lg rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-tg-border pb-3">
+                <h3 class="font-bold text-white text-base">Yasaklı Numara veya Kişi Ekle</h3>
+                <button onclick="closeUserModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Telefon Numarası, Kullanıcı ID veya @KullanıcıAdı</label>
+                    <input type="text" id="modal-user-identifier" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500" placeholder="Örn: +905488715274 veya 12345678 veya @spamci">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Not / Açıklama (İsteğe bağlı)</label>
+                    <input type="text" id="modal-user-note" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500" placeholder="Örn: Sürekli reklam atan kullanıcı">
+                </div>
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="modal-user-dm" class="w-4 h-4 accent-rose-600 rounded">
+                    <label for="modal-user-dm" class="text-xs text-slate-300 font-medium">Mesajı silindiğinde kullanıcıya özelden bildirim gönder</label>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t border-tg-border">
+                <button onclick="closeUserModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm">İptal</button>
+                <button onclick="submitUser()" class="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-semibold">Yasakla</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: HESAP BAĞLA (QR VEYA TELEFON) -->
+    <div id="modal-account" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-tg-card border border-tg-border w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-tg-border pb-3">
+                <h3 class="font-bold text-white text-base">Telegram Hesabı Bağla</h3>
+                <button onclick="closeAccountModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <!-- Seçim Butonları -->
+            <div class="grid grid-cols-2 gap-2 text-xs font-medium">
+                <button onclick="switchLoginMode('qr')" id="btn-login-qr" class="py-2 rounded-lg bg-blue-600 text-white font-semibold">QR Kod ile Giriş</button>
+                <button onclick="switchLoginMode('phone')" id="btn-login-phone" class="py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white">Telefon No ile Giriş</button>
+            </div>
+
+            <!-- QR Kod Bölümü -->
+            <div id="section-qr" class="flex flex-col items-center justify-center py-4 gap-3 text-center">
+                <div id="qr-container" class="w-56 h-56 bg-white rounded-xl flex items-center justify-center shadow-inner overflow-hidden p-2">
+                    <i class="fa-solid fa-spinner fa-spin text-3xl text-slate-500"></i>
+                </div>
+                <p class="text-xs text-slate-300">
+                    Telefonunuzdan <strong>Telegram &rarr; Ayarlar &rarr; Cihazlar &rarr; Masaüstü Cihazı Bağla</strong> yolunu izleyip QR kodu taratın.
+                </p>
+                <div id="qr-status-text" class="text-xs text-yellow-400">QR Kod taranması bekleniyor...</div>
+            </div>
+
+            <!-- Telefon No Bölümü -->
+            <div id="section-phone" class="hidden flex flex-col gap-3 py-2">
+                <div id="phone-step-1" class="flex flex-col gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Telefon Numarası (Ülke koduyla)</label>
+                        <input type="text" id="phone-number" value="+905" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button onclick="sendPhoneCode()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-2 rounded-lg transition">Kod Gönder</button>
+                </div>
+
+                <div id="phone-step-2" class="hidden flex flex-col gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Telegram'a Gelen Kod</label>
+                        <input type="text" id="phone-verify-code" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">2FA Şifresi (Varsa)</label>
+                        <input type="password" id="phone-verify-pass" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button onclick="verifyPhoneCode()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold py-2 rounded-lg transition">Girişi Tamamla</button>
+                </div>
+            </div>
+
+            <!-- Bağlı Hesap Listesi -->
+            <div id="connected-accounts-list" class="border-t border-tg-border pt-3 mt-2">
+                <div class="text-xs font-semibold text-slate-400 uppercase mb-2">Bağlı Hesaplar</div>
+                <div id="accounts-items" class="space-y-2">
+                    <!-- Dinamik liste -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        let currentTab = 'words';
+        let wordsData = [];
+        let usersData = [];
+        let logsData = [];
+        let qrPollInterval = null;
+        let qrToken = null;
+        let phoneToken = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchAccounts();
+            fetchWords();
+            fetchUsers();
+            fetchLogs();
+            fetchSettings();
+            initSSE();
+        });
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'text-blue-400', 'bg-tg-card/50');
+                btn.classList.add('border-transparent', 'text-slate-400');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+
+            const activeBtn = document.getElementById(`tab-btn-${tab}`);
+            const activeContent = document.getElementById(`tab-${tab}`);
+            if (activeBtn && activeContent) {
+                activeBtn.classList.add('border-blue-500', 'text-blue-400', 'bg-tg-card/50');
+                activeBtn.classList.remove('border-transparent', 'text-slate-400');
+                activeContent.classList.remove('hidden');
+            }
+            currentTab = tab;
+        }
+
+        // --- HESAP İŞLEMLERİ ---
+        async function fetchAccounts() {
+            try {
+                const res = await fetch('/api/accounts');
+                const data = await res.json();
+                renderAccountHeader(data);
+                renderAccountsList(data);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderAccountHeader(accounts) {
+            const active = accounts.find(a => a.is_running);
+            const pill = document.getElementById('account-status-pill');
+            const nameEl = document.getElementById('account-name');
+            const subEl = document.getElementById('account-sub');
+            const avatarEl = document.getElementById('account-avatar');
+
+            if (active) {
+                nameEl.textContent = active.first_name || active.username || active.phone || "Telegram Hesabı";
+                subEl.textContent = `🟢 Aktif İzleme (${active.phone || '@' + active.username || 'Bağlı'})`;
+                avatarEl.textContent = (active.first_name || 'T')[0];
+                avatarEl.className = "w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-xs font-bold text-white uppercase";
+            } else if (accounts.length > 0) {
+                nameEl.textContent = accounts[0].first_name || "Kayıtlı Hesap";
+                subEl.textContent = "🟡 Bağlantı Bekliyor";
+                avatarEl.textContent = (accounts[0].first_name || 'T')[0];
+            } else {
+                nameEl.textContent = "Hesap Bağlı Değil";
+                subEl.textContent = "Korumayı başlatmak için bağlayın";
+                avatarEl.textContent = "!";
+                avatarEl.className = "w-7 h-7 rounded-full bg-rose-600 flex items-center justify-center text-xs font-bold text-white uppercase";
+            }
+        }
+
+        function renderAccountsList(accounts) {
+            const container = document.getElementById('accounts-items');
+            if (accounts.length === 0) {
+                container.innerHTML = '<div class="text-xs text-slate-500 italic">Henüz bağlı hesap yok.</div>';
+                return;
+            }
+            container.innerHTML = accounts.map(a => `
+                <div class="flex items-center justify-between p-2 bg-slate-900 rounded-lg text-xs border border-tg-border">
+                    <div>
+                        <div class="font-medium text-white">${a.first_name || a.username || 'Hesap'}</div>
+                        <div class="text-[10px] text-slate-400">${a.phone || ''} (ID: ${a.telegram_id || '-'})</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="toggleAccount(${a.id})" class="px-2 py-1 rounded ${a.is_running ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-400'}">
+                            ${a.is_running ? 'Aktif' : 'Durduruldu'}
+                        </button>
+                        <button onclick="deleteAccount(${a.id})" class="text-rose-400 hover:text-rose-300 p-1">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function toggleAccount(id) {
+            await fetch(`/api/accounts/${id}/toggle`, { method: 'POST' });
+            fetchAccounts();
+        }
+
+        async function deleteAccount(id) {
+            if (!confirm('Hesap bağlantısını silmek istediğinize emin misiniz?')) return;
+            await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+            fetchAccounts();
+        }
+
+        function openAccountModal() {
+            document.getElementById('modal-account').classList.remove('hidden');
+            switchLoginMode('qr');
+        }
+
+        function closeAccountModal() {
+            document.getElementById('modal-account').classList.add('hidden');
+            if (qrPollInterval) clearInterval(qrPollInterval);
+        }
+
+        function switchLoginMode(mode) {
+            const btnQr = document.getElementById('btn-login-qr');
+            const btnPhone = document.getElementById('btn-login-phone');
+            const secQr = document.getElementById('section-qr');
+            const secPhone = document.getElementById('section-phone');
+
+            if (mode === 'qr') {
+                btnQr.className = 'py-2 rounded-lg bg-blue-600 text-white font-semibold';
+                btnPhone.className = 'py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white';
+                secQr.classList.remove('hidden');
+                secPhone.classList.add('hidden');
+                startQR();
+            } else {
+                btnPhone.className = 'py-2 rounded-lg bg-blue-600 text-white font-semibold';
+                btnQr.className = 'py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white';
+                secPhone.classList.remove('hidden');
+                secQr.classList.add('hidden');
+                if (qrPollInterval) clearInterval(qrPollInterval);
+            }
+        }
+
+        async function startQR() {
+            const container = document.getElementById('qr-container');
+            const statusEl = document.getElementById('qr-status-text');
+            container.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-3xl text-slate-500"></i>';
+            statusEl.textContent = 'QR Kod oluşturuluyor...';
+
+            try {
+                const res = await fetch('/api/accounts/qr-start', { method: 'POST' });
+                const data = await res.json();
+                qrToken = data.token;
+                container.innerHTML = `<img src="${data.qr_image}" class="w-full h-full object-contain">`;
+                statusEl.textContent = 'Telegram uygulamasından QR kodu taratın...';
+
+                if (qrPollInterval) clearInterval(qrPollInterval);
+                qrPollInterval = setInterval(checkQR, 2000);
+            } catch (e) {
+                statusEl.textContent = 'QR kod oluşturulamadı: ' + e;
+            }
+        }
+
+        async function checkQR() {
+            if (!qrToken) return;
+            try {
+                const res = await fetch(`/api/accounts/qr-status?token=${qrToken}`);
+                const data = await res.json();
+                if (data.status === 'success') {
+                    clearInterval(qrPollInterval);
+                    document.getElementById('qr-status-text').textContent = '✅ Giriş Başarılı!';
+                    setTimeout(() => {
+                        closeAccountModal();
+                        fetchAccounts();
+                    }, 1000);
+                } else if (data.status === 'expired') {
+                    clearInterval(qrPollInterval);
+                    document.getElementById('qr-status-text').textContent = '⚠️ Süre doldu. Yenileniyor...';
+                    startQR();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function sendPhoneCode() {
+            const phone = document.getElementById('phone-number').value.trim();
+            const res = await fetch('/api/accounts/phone-start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ phone })
+            });
+            const data = await res.json();
+            if (data.status === 'code_sent') {
+                phoneToken = data.token;
+                document.getElementById('phone-step-1').classList.add('hidden');
+                document.getElementById('phone-step-2').classList.remove('hidden');
+            } else {
+                alert('Hata: ' + (data.message || 'Kod gönderilemedi'));
+            }
+        }
+
+        async function verifyPhoneCode() {
+            const code = document.getElementById('phone-verify-code').value.trim();
+            const password = document.getElementById('phone-verify-pass').value;
+            const res = await fetch('/api/accounts/phone-verify', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ token: phoneToken, code, password })
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                alert('Giriş başarılı!');
+                closeAccountModal();
+                fetchAccounts();
+            } else {
+                alert('Hata: ' + (data.message || 'Giriş yapılamadı'));
+            }
+        }
+
+        // --- YASAKLI KELİMELER ---
+        async function fetchWords() {
+            const res = await fetch('/api/words');
+            wordsData = await res.json();
+            document.getElementById('badge-words-count').textContent = wordsData.length;
+            renderWords();
+        }
+
+        function renderWords() {
+            const tbody = document.getElementById('words-table-body');
+            const search = document.getElementById('words-search').value.toLowerCase();
+            const filtered = wordsData.filter(w => w.word.toLowerCase().includes(search));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 text-sm">Yasaklı kelime bulunamadı.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(w => `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="p-3.5 font-semibold text-rose-400">${escapeHtml(w.word)}</td>
+                    <td class="p-3.5 text-xs text-slate-400">
+                        <span class="bg-slate-800 px-2 py-0.5 rounded border border-tg-border">${w.match_type === 'contains' ? 'İçerir' : (w.match_type === 'exact' ? 'Tam Kelime' : 'Regex')}</span>
+                    </td>
+                    <td class="p-3.5">
+                        ${w.send_dm ? '<span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Evet (DM Gönder)</span>' : '<span class="text-xs text-slate-500">Hayır</span>'}
+                    </td>
+                    <td class="p-3.5 text-xs text-slate-400 max-w-xs truncate" title="${escapeHtml(w.custom_dm_message || 'Genel Şablon')}">
+                        ${w.custom_dm_message ? escapeHtml(w.custom_dm_message) : '<span class="text-slate-600 italic">Genel Şablon</span>'}
+                    </td>
+                    <td class="p-3.5">
+                        <button onclick="toggleWord(${w.id})" class="text-xs px-2.5 py-1 rounded-full font-medium ${w.is_active ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500 border border-slate-700'}">
+                            ${w.is_active ? 'Aktif' : 'Devre Dışı'}
+                        </button>
+                    </td>
+                    <td class="p-3.5 text-right">
+                        <button onclick="deleteWord(${w.id})" class="text-rose-400 hover:text-rose-300 p-1.5 transition">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openWordModal() {
+            document.getElementById('modal-word').classList.remove('hidden');
+            document.getElementById('modal-word-text').value = '';
+            document.getElementById('modal-word-dm').checked = false;
+            document.getElementById('modal-custom-dm-wrapper').classList.add('hidden');
+        }
+
+        function closeWordModal() {
+            document.getElementById('modal-word').classList.add('hidden');
+        }
+
+        function toggleCustomDmInput() {
+            const checked = document.getElementById('modal-word-dm').checked;
+            document.getElementById('modal-custom-dm-wrapper').classList.toggle('hidden', !checked);
+        }
+
+        async function submitWord() {
+            const words = document.getElementById('modal-word-text').value.trim();
+            if (!words) { alert('Lütfen en az bir kelime girin.'); return; }
+            const match_type = document.getElementById('modal-word-type').value;
+            const send_dm = document.getElementById('modal-word-dm').checked;
+            const custom_dm_message = document.getElementById('modal-word-custom-dm').value.trim();
+
+            await fetch('/api/words', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ words, match_type, send_dm, custom_dm_message })
+            });
+
+            closeWordModal();
+            fetchWords();
+        }
+
+        async function toggleWord(id) {
+            await fetch(`/api/words/${id}/toggle`, { method: 'POST' });
+            fetchWords();
+        }
+
+        async function deleteWord(id) {
+            if (!confirm('Bu kelimeyi silmek istediğinize emin misiniz?')) return;
+            await fetch(`/api/words/${id}`, { method: 'DELETE' });
+            fetchWords();
+        }
+
+        // --- YASAKLI KULLANICILAR ---
+        async function fetchUsers() {
+            const res = await fetch('/api/users');
+            usersData = await res.json();
+            document.getElementById('badge-users-count').textContent = usersData.length;
+            renderUsers();
+        }
+
+        function renderUsers() {
+            const tbody = document.getElementById('users-table-body');
+            if (usersData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 text-sm">Yasaklı kullanıcı veya numara ekli değil.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = usersData.map(u => `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="p-3.5 font-semibold text-rose-400 flex items-center gap-2">
+                        <i class="fa-solid fa-ban text-xs"></i> ${escapeHtml(u.identifier)}
+                    </td>
+                    <td class="p-3.5 text-xs text-slate-300">${escapeHtml(u.note || '-')}</td>
+                    <td class="p-3.5">
+                        ${u.send_dm ? '<span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Evet</span>' : '<span class="text-xs text-slate-500">Hayır</span>'}
+                    </td>
+                    <td class="p-3.5">
+                        <button onclick="toggleUser(${u.id})" class="text-xs px-2.5 py-1 rounded-full font-medium ${u.is_active ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500 border border-slate-700'}">
+                            ${u.is_active ? 'Aktif' : 'Devre Dışı'}
+                        </button>
+                    </td>
+                    <td class="p-3.5 text-right">
+                        <button onclick="deleteUser(${u.id})" class="text-rose-400 hover:text-rose-300 p-1.5 transition">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openUserModal() {
+            document.getElementById('modal-user').classList.remove('hidden');
+            document.getElementById('modal-user-identifier').value = '';
+            document.getElementById('modal-user-note').value = '';
+            document.getElementById('modal-user-dm').checked = false;
+        }
+
+        function closeUserModal() {
+            document.getElementById('modal-user').classList.add('hidden');
+        }
+
+        async function submitUser() {
+            const identifier = document.getElementById('modal-user-identifier').value.trim();
+            if (!identifier) { alert('Lütfen kimlik / numara girin.'); return; }
+            const note = document.getElementById('modal-user-note').value.trim();
+            const send_dm = document.getElementById('modal-user-dm').checked;
+
+            const res = await fetch('/api/users', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ identifier, note, send_dm })
+            });
+
+            if (res.ok) {
+                closeUserModal();
+                fetchUsers();
+            } else {
+                const err = await res.json();
+                alert('Hata: ' + (err.detail || 'Kullanıcı eklenemedi'));
+            }
+        }
+
+        async function toggleUser(id) {
+            await fetch(`/api/users/${id}/toggle`, { method: 'POST' });
+            fetchUsers();
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('Bu kullanıcı kuralını silmek istediğinize emin misiniz?')) return;
+            await fetch(`/api/users/${id}`, { method: 'DELETE' });
+            fetchUsers();
+        }
+
+        // --- SİLİNEN MESAJ LOGLARI ---
+        async function fetchLogs() {
+            const res = await fetch('/api/logs');
+            logsData = await res.json();
+            document.getElementById('badge-logs-count').textContent = logsData.length;
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('logs-table-body');
+            if (logsData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 text-sm">Henüz silinen bir mesaj kaydı yok.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = logsData.map(l => `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="p-3 text-xs text-slate-400 whitespace-nowrap">${l.created_at}</td>
+                    <td class="p-3 text-xs font-medium text-slate-200">${escapeHtml(l.chat_title || 'Grup')}</td>
+                    <td class="p-3 text-xs">
+                        <div class="font-medium text-white">${escapeHtml(l.sender_name || 'Bilinmiyor')}</div>
+                        <div class="text-[10px] text-slate-400">${l.sender_username ? '@' + l.sender_username : 'ID: ' + l.sender_id}</div>
+                    </td>
+                    <td class="p-3 text-xs text-slate-300 max-w-md break-words">${escapeHtml(l.message_text)}</td>
+                    <td class="p-3 text-xs">
+                        <span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded font-mono font-medium">
+                            ${l.trigger_type === 'word' ? 'Kelime: ' : 'Kullanıcı: '} ${escapeHtml(l.trigger_value)}
+                        </span>
+                    </td>
+                    <td class="p-3 text-xs whitespace-nowrap">
+                        ${l.dm_sent ? '<span class="text-emerald-400"><i class="fa-solid fa-check mr-1"></i> Gönderildi</span>' : (l.dm_status.startsWith('failed') ? `<span class="text-yellow-400" title="${l.dm_status}"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Ulaşılamadı</span>` : '<span class="text-slate-500">-</span>')}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function clearLogs() {
+            if (!confirm('Tüm silinme kayıtlarını silmek istediğinize emin misiniz?')) return;
+            await fetch('/api/logs/clear', { method: 'DELETE' });
+            fetchLogs();
+        }
+
+        function initSSE() {
+            const evtSource = new EventSource("/api/logs/stream");
+            evtSource.onmessage = function(event) {
+                const log = JSON.parse(event.data);
+                logsData.unshift(log);
+                document.getElementById('badge-logs-count').textContent = logsData.length;
+                renderLogs();
+            };
+        }
+
+        // --- TEST VE SİMÜLASYON ---
+        async function runTest() {
+            const message_text = document.getElementById('test-text').value.trim();
+            if (!message_text) { alert('Lütfen test edilecek bir mesaj yazın.'); return; }
+            const sender_username = document.getElementById('test-username').value.trim();
+            const sender_id = document.getElementById('test-sender-id').value.trim();
+            const chat_title = document.getElementById('test-group-name').value.trim();
+
+            const res = await fetch('/api/test-message', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ message_text, sender_username, sender_id, chat_title })
+            });
+
+            const data = await res.json();
+            const box = document.getElementById('test-result-box');
+            const header = document.getElementById('test-result-header');
+            const details = document.getElementById('test-result-details');
+            box.classList.remove('hidden');
+
+            if (data.would_delete) {
+                box.className = 'mt-4 p-4 rounded-xl border border-rose-500/30 bg-rose-950/20';
+                header.className = 'font-bold flex items-center gap-2 text-sm text-rose-400';
+                header.innerHTML = '<i class="fa-solid fa-circle-xmark text-base"></i> BU MESAJ ANINDA OTOMATİK SİLİNİR!';
+                
+                details.innerHTML = `
+                    <div><strong>Tetikleyen Kural:</strong> <span class="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded font-mono">${data.trigger_type === 'word' ? 'Yasaklı Kelime' : 'Yasaklı Kullanıcı'}: ${escapeHtml(data.trigger_value)}</span></div>
+                    <div><strong>Özelden Mesaj Durumu:</strong> ${data.send_dm ? '<span class="text-emerald-400">Özelden DM Bildirimi Açık</span>' : '<span class="text-slate-400">Kapalı (Sessizce Silinir)</span>'}</div>
+                    ${data.dm_preview ? `<div class="mt-2 p-3 bg-slate-900 rounded-lg border border-tg-border"><strong>Kullanıcıya Gönderilecek DM:</strong><br><pre class="whitespace-pre-wrap font-sans text-slate-300 mt-1">${escapeHtml(data.dm_preview)}</pre></div>` : ''}
+                `;
+            } else {
+                box.className = 'mt-4 p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20';
+                header.className = 'font-bold flex items-center gap-2 text-sm text-emerald-400';
+                header.innerHTML = '<i class="fa-solid fa-circle-check text-base"></i> BU MESAJ GÜVENLİ (SİLİNMEZ)';
+                details.innerHTML = '<div>Mesaj herhangi bir yasaklı kelimeye veya yasaklı kullanıcıya takılmadı.</div>';
+            }
+        }
+
+        // --- AYARLAR ---
+        async function fetchSettings() {
+            const res = await fetch('/api/settings');
+            const data = await res.json();
+            document.getElementById('setting-dm-template').value = data.default_dm_template;
+            document.getElementById('setting-ignore-admins').checked = data.ignore_admins;
+            document.getElementById('setting-monitor-all').checked = data.monitor_all_chats;
+        }
+
+        async function saveSettings() {
+            const default_dm_template = document.getElementById('setting-dm-template').value;
+            const ignore_admins = document.getElementById('setting-ignore-admins').checked;
+            const monitor_all_chats = document.getElementById('setting-monitor-all').checked;
+
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ default_dm_template, ignore_admins, monitor_all_chats, selected_chat_ids: "" })
+            });
+
+            alert('Ayarlar kaydedildi.');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.DS_Store
+*.session
+*.session-journal
+telegram_yasak.db
+temp_*.session
+data/

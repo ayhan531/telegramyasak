@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: telegramyasak
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    healthCheckPath: /health
+    plan: starter
+    envVars:
+      - key: API_ID
+        value: "37347062"
+      - key: API_HASH
+        value: "9bc48bc153c6c5351cc2aa7335851695"
+      - key: PORT
+        value: "10000"
