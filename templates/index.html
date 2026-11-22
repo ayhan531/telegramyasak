@@ -57,18 +57,21 @@
             </div>
 
             <div class="flex items-center gap-3">
-                <!-- Aktif Hesap Rozeti -->
+                <!-- Bot / Hesap Durumu Rozeti -->
                 <div id="account-status-pill" class="bg-slate-800/80 border border-tg-border rounded-xl px-3 py-1.5 flex items-center gap-2.5">
                     <div id="account-avatar" class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white uppercase">
-                        ?
+                        🤖
                     </div>
                     <div class="text-left text-xs leading-tight">
-                        <div id="account-name" class="font-medium text-slate-200">Hesap Aranıyor...</div>
-                        <div id="account-sub" class="text-slate-400 text-[10px]">Bağlantı kontrolü</div>
+                        <div id="account-name" class="font-medium text-slate-200">Bot Bekleniyor...</div>
+                        <div id="account-sub" class="text-slate-400 text-[10px]">Token veya Hesap Bağlayın</div>
                     </div>
                     <button onclick="openAccountModal()" class="ml-2 text-xs bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg transition font-medium">
-                        Hesap Bağla
+                        Botu / Hesabı Bağla
                     </button>
+                    <a id="btn-add-to-group" href="#" target="_blank" class="hidden text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-lg transition font-semibold flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> Gruba Ekle
+                    </a>
                 </div>
             </div>
         </div>
@@ -424,21 +427,52 @@
         </div>
     </div>
 
-    <!-- MODAL: HESAP BAĞLA (QR VEYA TELEFON) -->
+    <!-- MODAL: HESAP VEYA BOT BAĞLA -->
     <div id="modal-account" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-tg-card border border-tg-border w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+        <div class="bg-tg-card border border-tg-border w-full max-w-lg rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
             <div class="flex items-center justify-between border-b border-tg-border pb-3">
-                <h3 class="font-bold text-white text-base">Telegram Hesabı Bağla</h3>
+                <h3 class="font-bold text-white text-base">Telegram Botu veya Hesabı Bağla</h3>
                 <button onclick="closeAccountModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
 
-            <div class="grid grid-cols-2 gap-2 text-xs font-medium">
-                <button onclick="switchLoginMode('qr')" id="btn-login-qr" class="py-2 rounded-lg bg-blue-600 text-white font-semibold">QR Kod ile Giriş</button>
-                <button onclick="switchLoginMode('phone')" id="btn-login-phone" class="py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white">Telefon No ile Giriş</button>
+            <!-- Seçim Sekmeleri -->
+            <div class="grid grid-cols-3 gap-1.5 text-xs font-medium">
+                <button onclick="switchLoginMode('bot')" id="btn-login-bot" class="py-2 rounded-lg bg-blue-600 text-white font-semibold">🤖 Bot Token (Önerilen)</button>
+                <button onclick="switchLoginMode('qr')" id="btn-login-qr" class="py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white">📱 QR Kod</button>
+                <button onclick="switchLoginMode('phone')" id="btn-login-phone" class="py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white">📞 Telefon No</button>
             </div>
 
-            <div id="section-qr" class="flex flex-col items-center justify-center py-4 gap-3 text-center">
-                <div id="qr-container" class="w-56 h-56 bg-white rounded-xl flex items-center justify-center shadow-inner overflow-hidden p-2">
+            <!-- BÖLÜM 1: BOT TOKEN (ÖNERİLEN) -->
+            <div id="section-bot" class="flex flex-col gap-3 py-2">
+                <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-slate-300 space-y-1">
+                    <div class="font-bold text-cyan-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-info"></i> Bot Nasıl Kurulur?
+                    </div>
+                    <div>1. Telegram'da <a href="https://t.me/BotFather" target="_blank" class="text-blue-400 underline font-semibold">@BotFather</a>'ı açın ve <code>/newbot</code> yazın.</div>
+                    <div>2. Botunuza bir isim ve kullanıcı adı belirleyin.</div>
+                    <div>3. BotFather'ın verdiği <strong>HTTP API Token</strong>'ı aşağıdaki kutuya yapıştırıp <strong>"Botu Başlat"</strong>a basın.</div>
+                    <div>4. Botu grubunuza <strong>Yönetici (Mesaj Silme Yetkisi)</strong> ile ekleyin. Grup panoda anında belirir!</div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Telegram Bot Token (HTTP API Token)</label>
+                    <input type="text" id="bot-token-input" class="w-full bg-slate-900 border border-tg-border rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500 font-mono" placeholder="Örn: 7123456789:AAHfdks8923jhfdslkjfds...">
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                    <button onclick="startBotToken()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-2 px-5 rounded-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-bolt"></i> Botu Başlat ve Bağla
+                    </button>
+                    <button id="btn-stop-bot" onclick="stopBotToken()" class="hidden text-xs bg-rose-950/40 text-rose-400 hover:bg-rose-900 border border-rose-800 px-3 py-2 rounded-lg">
+                        Botu Durdur
+                    </button>
+                </div>
+                <div id="bot-status-msg" class="text-xs text-slate-400"></div>
+            </div>
+
+            <!-- BÖLÜM 2: QR Kod Bölümü -->
+            <div id="section-qr" class="hidden flex flex-col items-center justify-center py-4 gap-3 text-center">
+                <div id="qr-container" class="w-52 h-52 bg-white rounded-xl flex items-center justify-center shadow-inner overflow-hidden p-2">
                     <i class="fa-solid fa-spinner fa-spin text-3xl text-slate-500"></i>
                 </div>
                 <p class="text-xs text-slate-300">
@@ -447,6 +481,7 @@
                 <div id="qr-status-text" class="text-xs text-yellow-400">QR Kod taranması bekleniyor...</div>
             </div>
 
+            <!-- BÖLÜM 3: Telefon No Bölümü -->
             <div id="section-phone" class="hidden flex flex-col gap-3 py-2">
                 <div id="phone-step-1" class="flex flex-col gap-3">
                     <div>
@@ -469,7 +504,8 @@
                 </div>
             </div>
 
-            <div id="connected-accounts-list" class="border-t border-tg-border pt-3 mt-2">
+            <!-- Bağlı Hesap Listesi -->
+            <div id="connected-accounts-list" class="border-t border-tg-border pt-3 mt-1">
                 <div class="text-xs font-semibold text-slate-400 uppercase mb-2">Bağlı Hesaplar</div>
                 <div id="accounts-items" class="space-y-2"></div>
             </div>
@@ -488,6 +524,7 @@
         let phoneToken = null;
 
         document.addEventListener('DOMContentLoaded', () => {
+            fetchBotStatus();
             fetchAccounts();
             fetchChats();
             fetchWords();
@@ -701,7 +738,7 @@
 
         function openAccountModal() {
             document.getElementById('modal-account').classList.remove('hidden');
-            switchLoginMode('qr');
+            switchLoginMode('bot');
         }
 
         function closeAccountModal() {
@@ -710,24 +747,95 @@
         }
 
         function switchLoginMode(mode) {
+            const btnBot = document.getElementById('btn-login-bot');
             const btnQr = document.getElementById('btn-login-qr');
             const btnPhone = document.getElementById('btn-login-phone');
+            const secBot = document.getElementById('section-bot');
             const secQr = document.getElementById('section-qr');
             const secPhone = document.getElementById('section-phone');
 
-            if (mode === 'qr') {
+            [btnBot, btnQr, btnPhone].forEach(b => {
+                b.className = 'py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white';
+            });
+            [secBot, secQr, secPhone].forEach(s => s.classList.add('hidden'));
+
+            if (mode === 'bot') {
+                btnBot.className = 'py-2 rounded-lg bg-blue-600 text-white font-semibold';
+                secBot.classList.remove('hidden');
+                fetchBotStatus();
+                if (qrPollInterval) clearInterval(qrPollInterval);
+            } else if (mode === 'qr') {
                 btnQr.className = 'py-2 rounded-lg bg-blue-600 text-white font-semibold';
-                btnPhone.className = 'py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white';
                 secQr.classList.remove('hidden');
-                secPhone.classList.add('hidden');
                 startQR();
             } else {
                 btnPhone.className = 'py-2 rounded-lg bg-blue-600 text-white font-semibold';
-                btnQr.className = 'py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white';
                 secPhone.classList.remove('hidden');
-                secQr.classList.add('hidden');
                 if (qrPollInterval) clearInterval(qrPollInterval);
             }
+        }
+
+        async function fetchBotStatus() {
+            try {
+                const res = await fetch('/api/bot');
+                const data = await res.json();
+                const statusEl = document.getElementById('bot-status-msg');
+                const stopBtn = document.getElementById('btn-stop-bot');
+                const addGroupBtn = document.getElementById('btn-add-to-group');
+
+                if (data.is_running) {
+                    statusEl.innerHTML = `<span class="text-emerald-400 font-medium">🟢 Aktif Bot: @${data.username} (${data.first_name})</span>`;
+                    stopBtn.classList.remove('hidden');
+                    if (data.token_preview) {
+                        document.getElementById('bot-token-input').placeholder = data.token_preview;
+                    }
+                    if (addGroupBtn && data.username) {
+                        addGroupBtn.href = `https://t.me/${data.username}?startgroup=true&admin=delete_messages+invite_users`;
+                        addGroupBtn.classList.remove('hidden');
+                    }
+                } else if (data.is_configured) {
+                    statusEl.innerHTML = `<span class="text-yellow-400">🟡 Bot kayıtlı fakat bağlı değil.</span>`;
+                    stopBtn.classList.add('hidden');
+                } else {
+                    statusEl.innerHTML = `Henüz bot token eklenmedi.`;
+                    stopBtn.classList.add('hidden');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function startBotToken() {
+            const token = document.getElementById('bot-token-input').value.trim();
+            if (!token) { alert('Lütfen Bot Token girin.'); return; }
+            const statusEl = document.getElementById('bot-status-msg');
+            statusEl.textContent = 'Bot başlatılıyor, lütfen bekleyin...';
+
+            const res = await fetch('/api/bot/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ token })
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                statusEl.innerHTML = `<span class="text-emerald-400">✅ Bot başarıyla bağlandı: @${data.bot.username}</span>`;
+                setTimeout(() => {
+                    closeAccountModal();
+                    fetchBotStatus();
+                    fetchAccounts();
+                    fetchChats();
+                }, 1000);
+            } else {
+                statusEl.innerHTML = `<span class="text-rose-400">❌ Hata: ${data.detail || data.message || 'Bağlanamadı'}</span>`;
+            }
+        }
+
+        async function stopBotToken() {
+            if (!confirm('Botu durdurmak istediğinize emin misiniz?')) return;
+            await fetch('/api/bot/stop', { method: 'POST' });
+            fetchBotStatus();
+            fetchAccounts();
+            fetchChats();
         }
 
         async function startQR() {

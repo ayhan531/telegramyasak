@@ -180,6 +180,35 @@ async def delete_account(id: int, db=Depends(get_db)):
 async def get_dialogs(id: int):
     return await bot_service.get_account_dialogs(id)
 
+# --- BOT TOKEN YÖNETİMİ ---
+
+@app.get("/api/bot")
+def get_bot_status(db=Depends(get_db)):
+    saved_token = get_setting(db, "bot_token", "").strip()
+    is_running = bot_service.bot_client is not None and bot_service.bot_client.is_connected()
+    return {
+        "is_configured": bool(saved_token),
+        "is_running": is_running,
+        "username": bot_service.bot_info.get("username"),
+        "first_name": bot_service.bot_info.get("first_name"),
+        "id": bot_service.bot_info.get("id"),
+        "token_preview": (saved_token[:10] + "..." + saved_token[-5:]) if saved_token else None
+    }
+
+@app.post("/api/bot/start")
+async def start_bot(payload: dict):
+    token = payload.get("token", "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Bot Token gereklidir.")
+    res = await bot_service.start_bot_token(token)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=400, detail=res.get("message"))
+    return res
+
+@app.post("/api/bot/stop")
+async def stop_bot():
+    return await bot_service.stop_bot_token()
+
 # --- SOHBET / KANAL LİSTESİ ---
 
 @app.get("/api/chats")

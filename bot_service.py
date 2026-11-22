@@ -10,18 +10,56 @@ from typing import Dict, List, Optional
 from telethon import TelegramClient, events, types, errors
 from telethon.errors import SessionPasswordNeededError
 
-from database import SessionLocal, Account, WordFilter, UserFilter, DeletionLog, BotSetting, get_setting, DATA_DIR
+from database import SessionLocal, Account, WordFilter, UserFilter, DeletionLog, BotSetting, MonitoredChat, get_setting, set_setting, DATA_DIR
 from matcher import check_word_match, check_user_match
 
 API_ID = int(os.environ.get("API_ID", "37347062"))
 API_HASH = os.environ.get("API_HASH", "9bc48bc153c6c5351cc2aa7335851695")
 
 active_clients: Dict[int, TelegramClient] = {}
+bot_client: Optional[TelegramClient] = None
+bot_info: dict = {}
 qr_sessions: Dict[str, dict] = {}
 phone_sessions: Dict[str, dict] = {}
 log_subscribers: List[asyncio.Queue] = []
 
-def make_qr_b64(url: str) -> str:
+async def delete_after_delay(msg, delay: int = 10):
+    """Gruptaki uyarı mesajını birkaç saniye sonra silerek grubu temiz tutar."""
+    try:
+        await asyncio.sleep(delay)
+        await msg.delete()
+    except Exception:
+        pass
+
+def is_chat_match(rule_chat_id: str, incoming_chat_id: str) -> bool:
+    """Kuralın belirli bir sohbete mi yoksa tüm sohbetlere mi ait olduğunu denetler."""
+    if not rule_chat_id or str(rule_chat_id).strip().lower() in ["all", "tüm gruplar", ""]:
+        return True
+    r = str(rule_chat_id).strip().replace("-100", "").replace("-", "")
+    i = str(incoming_chat_id).strip().replace("-100", "").replace("-", "")
+    return r == i
+
+async def register_or_update_chat(chat_id: str, chat_title: str, is_channel: bool = False):
+    """Botun bulunduğu grubu/kanalı veritabanına kaydeder veya günceller."""
+    db = SessionLocal()
+    try:
+        chat = db.query(MonitoredChat).filter(MonitoredChat.chat_id == chat_id).first()
+        if not chat:
+            chat = MonitoredChat(
+                chat_id=chat_id,
+                chat_title=chat_title or f"Grup {chat_id}",
+                is_active=True
+            )
+            db.add(chat)
+            db.commit()
+            print(f"[Bot Service] Yeni grup/kanal otomatik eklendi: {chat_title} ({chat_id})")
+        elif chat_title and chat.chat_title != chat_title:
+            chat.chat_title = chat_title
+            db.commit()
+    except Exception as e:
+        print(f"[Bot Service] register_chat error: {e}")
+    finally:
+        db.close()
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -141,46 +179,61 @@ async def start_phone_login(phone: str) -> dict:
         await client.disconnect()
         return {"status": "error", "message": str(e)}
 
-async def complete_phone_login(token: str, code: str, password: Optional[str] = None) -> dict:
-    sess = phone_sessions.get(token)
-    if not sess:
-        return {"status": "error", "message": "Oturum bulunamadı veya süresi doldu."}
-    client = sess["client"]
+async def start_bot_token(token: str) -> dict:
+    """Telegram @BotFather Bot Token'ı ile istemciyi başlatır."""
+    global bot_client, bot_info
+    clean_token = token.strip()
+    if not clean_token:
+        return {"status": "error", "message": "Bot Token boş olamaz."}
+
+    session_path = os.path.join(DATA_DIR, "botfather.session")
+    client = TelegramClient(session_path, API_ID, API_HASH)
     try:
-        try:
-            user = await client.sign_in(sess["phone"], code, phone_code_hash=sess["phone_code_hash"])
-        except SessionPasswordNeededError:
-            if not password:
-                return {"status": "2fa_needed", "message": "İki aşamalı doğrulama (2FA) şifresi gerekli."}
-            user = await client.sign_in(password=password)
-            
+        await client.start(bot_token=clean_token)
+        me = await client.get_me()
+        bot_info = {
+            "id": me.id,
+            "first_name": me.first_name,
+            "username": me.username,
+            "is_bot": True,
+            "token": clean_token,
+            "is_running": True
+        }
+        attach_handlers(client)
+        bot_client = client
+
+        # Token'ı ayarlara kaydet
         db = SessionLocal()
         try:
-            acc = db.query(Account).filter(Account.telegram_id == user.id).first()
-            if not acc:
-                acc = Account(
-                    phone=user.phone,
-                    username=user.username,
-                    first_name=user.first_name,
-                    telegram_id=user.id,
-                    session_file=sess["session_file"],
-                    is_active=True
-                )
-                db.add(acc)
-            else:
-                acc.session_file = sess["session_file"]
-                acc.is_active = True
-                acc.username = user.username
-                acc.first_name = user.first_name
-            db.commit()
-            db.refresh(acc)
-            attach_handlers(client)
-            active_clients[acc.id] = client
-            return {"status": "success", "account_id": acc.id, "first_name": user.first_name}
+            set_setting(db, "bot_token", clean_token)
         finally:
             db.close()
+
+        print(f"[Bot Service] Telegram Botu Başlatıldı: @{me.username} ({me.id})")
+        return {"status": "success", "bot": bot_info}
     except Exception as e:
+        print(f"[Bot Service] Bot Token başlatma hatası: {e}")
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
         return {"status": "error", "message": str(e)}
+
+async def stop_bot_token():
+    global bot_client, bot_info
+    if bot_client:
+        try:
+            await bot_client.disconnect()
+        except Exception:
+            pass
+        bot_client = None
+    bot_info["is_running"] = False
+    db = SessionLocal()
+    try:
+        set_setting(db, "bot_token", "")
+    finally:
+        db.close()
+    return {"status": "ok"}
 
 
 async def broadcast_log(log_entry: dict):
@@ -219,6 +272,9 @@ async def handle_incoming_message(client: TelegramClient, event):
         chat = await event.get_chat()
         chat_id = str(event.chat_id)
         chat_title = getattr(chat, "title", "Grup/Kanal")
+
+        # Botun olduğu grubu otomatik olarak veritabanına kaydet/güncelle
+        asyncio.create_task(register_or_update_chat(chat_id, chat_title, getattr(event, "is_channel", False)))
 
         sender = await event.get_sender()
         if not sender:
@@ -286,10 +342,16 @@ async def handle_incoming_message(client: TelegramClient, event):
                     dm_text = format_dm_message(template, sender_name, chat_title, f"Yasaklı Kullanıcı: {matched_user_rule.identifier}", message_text)
                     try:
                         await client.send_message(sender_id, dm_text)
-                        dm_status = "sent"
+                        dm_status = "sent (Özelden DM)"
                         dm_sent = True
                     except Exception as e:
-                        dm_status = f"failed: {str(e)[:50]}"
+                        try:
+                            warn_msg = await event.respond(f"⚠️ {sender_name}, bu grupta mesaj göndermeniz yetkili tarafından engellenmiştir.")
+                            asyncio.create_task(delete_after_delay(warn_msg, 8))
+                            dm_status = "sent (Grupta 8sn Geçici Uyarı)"
+                            dm_sent = True
+                        except Exception as e2:
+                            dm_status = f"failed: {str(e)[:40]}"
 
                 log_entry = DeletionLog(
                     chat_id=chat_id,
@@ -350,10 +412,17 @@ async def handle_incoming_message(client: TelegramClient, event):
                     dm_text = format_dm_message(template, sender_name, chat_title, f"Yasaklı Kelime: '{matched_word_rule.word}'", message_text)
                     try:
                         await client.send_message(sender_id, dm_text)
-                        dm_status = "sent"
+                        dm_status = "sent (Özelden DM)"
                         dm_sent = True
                     except Exception as e:
-                        dm_status = f"failed: {str(e)[:50]}"
+                        # Eğer kullanıcı bota özelden /start basmadıysa grupta geçici etiketleyerek uyar
+                        try:
+                            warn_msg = await event.respond(f"⚠️ {sender_name}, gönderdiğiniz mesaj silindi (Yasaklı kelime: {matched_word_rule.word}).")
+                            asyncio.create_task(delete_after_delay(warn_msg, 8))
+                            dm_status = "sent (Grupta 8sn Geçici Uyarı)"
+                            dm_sent = True
+                        except Exception as e2:
+                            dm_status = f"failed: {str(e)[:40]}"
 
                 log_entry = DeletionLog(
                     chat_id=chat_id,
@@ -423,9 +492,16 @@ async def start_account_client(account: Account) -> Optional[TelegramClient]:
         return None
 
 async def init_all_active_accounts():
-    """Tüm aktif hesapları başlatır."""
+    """Tüm aktif hesapları ve kayıtlı bot token'ı başlatır."""
     db = SessionLocal()
     try:
+        # 1. Kayıtlı Bot Token varsa botu başlat
+        saved_bot_token = get_setting(db, "bot_token", "").strip()
+        if saved_bot_token:
+            print("[Bot Service] Kayıtlı bot token başlatılıyor...")
+            await start_bot_token(saved_bot_token)
+
+        # 2. Kayıtlı kullanıcı hesaplarını başlat
         accounts = db.query(Account).filter(Account.is_active == True).all()
         for acc in accounts:
             await start_account_client(acc)
@@ -433,10 +509,15 @@ async def init_all_active_accounts():
         db.close()
 
 async def get_all_dialogs() -> List[dict]:
-    """Tüm aktif hesapların üye/yönetici olduğu grup ve kanalları toplar."""
+    """Tüm aktif hesapların ve botun üye/yönetici olduğu grup ve kanalları toplar."""
     dialogs = []
     seen_ids = set()
-    for acc_id, client in active_clients.items():
+
+    clients_to_check = list(active_clients.values())
+    if bot_client and bot_client.is_connected():
+        clients_to_check.append(bot_client)
+
+    for client in clients_to_check:
         if not client.is_connected():
             continue
         try:
@@ -445,12 +526,12 @@ async def get_all_dialogs() -> List[dict]:
                     c_id = str(dialog.id)
                     if c_id not in seen_ids:
                         seen_ids.add(c_id)
-                        is_admin = False
+                        is_admin = True
                         try:
                             perms = await client.get_permissions(dialog.entity, 'me')
                             is_admin = perms.is_admin or perms.is_creator
                         except Exception:
-                            is_admin = True
+                            pass
                             
                         dialogs.append({
                             "id": c_id,
@@ -460,5 +541,5 @@ async def get_all_dialogs() -> List[dict]:
                             "is_admin": is_admin
                         })
         except Exception as e:
-            print(f"[Bot Service] get_all_dialogs error ({acc_id}): {e}")
+            print(f"[Bot Service] get_all_dialogs error: {e}")
     return dialogs
